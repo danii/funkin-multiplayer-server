@@ -93,6 +93,8 @@ name = "funkin-multiplayer-server"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "serde",
+ "serde_json",
  "tokio",
  "warp",
 ]
@@ -745,6 +747,20 @@ name = "serde"
 version = "1.0.124"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd761ff957cb2a45fbb9ab3da6512de9de55872866160b23c25f1a841e99d29f"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.124"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1800f7693e94e186f5e25a28291ae1570da908aff7d97a095dec1e56ff99069b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "serde_json"
@@ -961,16 +977,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-futures"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
-dependencies = [
- "pin-project",
- "tracing",
-]
-
-[[package]]
 name = "try-lock"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1080,8 +1086,7 @@ dependencies = [
 [[package]]
 name = "warp"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dafd0aac2818a94a34df0df1100a7356c493d8ede4393875fd0b5c51bb6bc80"
+source = "git+https://github.com/danii/warp.git#826e4970533e7e7dafcb3d75a1482f4b80b66745"
 dependencies = [
  "bytes",
  "futures",
@@ -1104,7 +1109,6 @@ dependencies = [
  "tokio-util",
  "tower-service",
  "tracing",
- "tracing-futures",
 ]
 
 [[package]]
