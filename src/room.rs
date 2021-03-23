@@ -46,7 +46,13 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 				(Some(Err(error)), ..) => panic!("{}", error),
 				(None, index, _) => {
 					drop(message_futures); // Drop message_futures now that we're done.
-					clients.remove(index);
+
+					match clients.remove(index).state {
+						ClientState::Lobby {username, ..} |
+							ClientState::Play {username} =>
+								process_user_leave(&mut clients, &username).await,
+						_ => ()
+					}
 				},
 				_ => ()
 			},
@@ -196,6 +202,36 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 		},
 		_ => todo!()
 	}
+}
+
+async fn process_user_leave(clients: &mut Vec<Client>, user: &str) {
+	let message_data = Lobby::UserLeft {user};
+	let message = &to_string(&message_data)
+		.expect("serialization error");
+
+	let game_start = clients.iter()
+		.all(|client| match client.state {
+			ClientState::Login => true,
+			ClientState::Lobby {ready, ..} => ready,
+			_ => false
+		})
+		.then(|| to_string(&Lobby::GameStart).expect("serialization error"));
+
+	iter(clients.iter_mut())
+		.for_each_concurrent(None, |client| {
+			let game_start = game_start.clone();
+
+			async move {
+				client.socket.send(Message::Text(message.clone())).await
+					.expect("socket error");
+
+				match game_start {
+					Some(message) => client.socket.send(Message::Text(message)).await
+						.expect("socket error"),
+					_ => ()
+				}
+			}
+		}).await
 }
 
 async fn deserialize_error(error: Error, client: &mut Client) {
