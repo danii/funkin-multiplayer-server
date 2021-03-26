@@ -43,7 +43,7 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 					println!("Message {} from {:?}.", data, &clients[index]);
 					process_opcode(&mut clients, &data, index).await;
 				},
-				(Some(Err(error)), ..) => panic!("{}", error),
+				(Some(Err(error)), ..) => panic!("DEBUG: {0:?}\nDISPLAY: {0}", error),
 				(None, index, _) => {
 					drop(message_futures); // Drop message_futures now that we're done.
 
