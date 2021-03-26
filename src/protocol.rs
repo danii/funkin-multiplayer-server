@@ -10,7 +10,9 @@ pub enum RoomLogin<'i> {
 	#[serde(rename = "1")]
 	RoomInformation {
 		users: Vec<&'i str>
-	}
+	},
+	#[serde(rename = "2")]
+	NameTaken
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -32,5 +34,14 @@ pub enum Lobby<'i> {
 	#[serde(rename = "4")]
 	UserLeft {
 		user: &'i str
+	}
+}
+
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[serde(tag = "opcode")]
+pub enum Play {
+	#[serde(rename = "0")]
+	ClientScoreUpdate {
+		score: f64
 	}
 }

@@ -1,4 +1,4 @@
-use self::super::protocol::{Lobby, RoomLogin};
+use self::super::protocol::{Lobby, Play, RoomLogin};
 use futures::{
 	future::{FusedFuture, FutureExt, pending, select_all},
 	sink::SinkExt, stream::{StreamExt, iter},
@@ -96,9 +96,24 @@ impl Default for ClientState {
 // performance and please the borrow checker at the same time!
 async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 	match &mut clients[index].state {
-		state @ ClientState::Login => match from_str(data) {
+		ClientState::Login => match from_str(data) {
 			Ok(RoomLogin::ClientInformation {username}) => {
-				*state = ClientState::Lobby {username: username.into(), ready: false};
+				let taken = clients.iter()
+					.filter_map(|client| match &client.state {
+						ClientState::Lobby {username, ..} |
+							ClientState::Play {username} =>
+								Some(&*username as &str),
+						_ => None
+					})
+					.any(|client| client == data);
+
+				if taken {
+					let message_data = RoomLogin::NameTaken;
+					let message = to_string(&message_data).expect("serialization error");
+					clients[index].socket.send(Message::Text(message)).await
+						.expect("socket error");
+					return;
+				}
 
 				let mut this_client = None;
 				let tee = clients.iter_mut()
@@ -139,14 +154,18 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 
 				// This future tells the other already logged in clients of the new
 				// client.
-				let clients = iter(tee.into_iter().map(|(client, _)| client))
+				let clients_future = iter(tee.into_iter().map(|(client, _)| client))
 					.for_each_concurrent(None, |client| async move {
 						client.send(Message::Text(message.clone())).await
 							.expect("socket error");
 					});
 
 				// Run them both!
-				join!(this_client, clients);
+				join!(this_client, clients_future);
+
+				// Set state.
+				clients[index].state
+					= ClientState::Lobby {username: username.into(), ready: false};
 			},
 			Ok(_) => server_opcode_error(&mut clients[index]).await,
 			Err(error) => deserialize_error(error, &mut clients[index]).await
@@ -200,7 +219,11 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 			Ok(_) => server_opcode_error(&mut clients[index]).await,
 			Err(error) => deserialize_error(error, &mut clients[index]).await
 		},
-		_ => todo!()
+		ClientState::Play {..} => match from_str(data) {
+			Ok(Play::ClientScoreUpdate {..}) => (),
+			//Ok(_) => server_opcode_error(&mut clients[index]).await,
+			Err(error) => deserialize_error(error, &mut clients[index]).await
+		}
 	}
 }
 
@@ -231,7 +254,17 @@ async fn process_user_leave(clients: &mut Vec<Client>, user: &str) {
 					_ => ()
 				}
 			}
-		}).await
+		}).await;
+
+	// Switch everyone's states to Play.
+	if let Some(_) = game_start {
+		clients.iter_mut()
+			.for_each(|client| match take(&mut client.state) {
+				ClientState::Lobby {username, ..} =>
+					drop(replace(&mut client.state, ClientState::Play {username})),
+				_ => ()
+			});
+	}
 }
 
 async fn deserialize_error(error: Error, client: &mut Client) {
