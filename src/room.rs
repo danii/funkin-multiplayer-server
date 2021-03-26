@@ -43,7 +43,36 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 					println!("Message {} from {:?}.", data, &clients[index]);
 					process_opcode(&mut clients, &data, index).await;
 				},
-				(Some(Err(error)), ..) => panic!("{}", error),
+				// Wow, warp is a really huge piece of shit and provides zero fucking
+				// information on errors other than human readable strings which may
+				// change across minor versions, how extremely fucking useful. I want to
+				// fucking die why can nobody write a normal fucking library, please
+				// hold me ;-;.
+				(Some(Err(error)), index, _) => match &format!("{}", error) as &str {
+					"WebSocket protocol error: Connection reset without closing handshake" => {
+						// Imagine using a library where clients can just crash your server
+						// all they want because you cannot tell what an error is because
+						// the only useful information you can gauge from them is
+						// information that may change formatting between minor crate
+						// versions because it's actually just a human readable error
+						// message that isn't meant to be read by your program.
+
+						// please, hold me, please, i'm crying
+
+						eprintln!("Client {} left without proper closing handshake.", index);
+
+						// Same code as close.
+						drop(message_futures); // Drop message_futures now that we're done.
+
+						match clients.remove(index).state {
+							ClientState::Lobby {username, ..} |
+								ClientState::Play {username} =>
+									process_user_leave(&mut clients, &username).await,
+							_ => ()
+						}
+					},
+					_ => panic!("{}", error)
+				},
 				(None, index, _) => {
 					drop(message_futures); // Drop message_futures now that we're done.
 
