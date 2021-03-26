@@ -219,9 +219,21 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 			Ok(_) => server_opcode_error(&mut clients[index]).await,
 			Err(error) => deserialize_error(error, &mut clients[index]).await
 		},
-		ClientState::Play {..} => match from_str(data) {
-			Ok(Play::ClientScoreUpdate {..}) => (),
-			//Ok(_) => server_opcode_error(&mut clients[index]).await,
+		ClientState::Play {username} => match from_str(data) {
+			Ok(Play::ClientScoreUpdate {score, health}) => {
+				let message_data = Play::UserScoreUpdate {
+					user: &username, score, health
+				};
+				let message = &to_string(&message_data).expect("serialization error");
+
+				iter(clients.iter_mut()
+						.filter(|client| matches!(client.state, ClientState::Play {..})))
+					.for_each_concurrent(None, |client| async move {
+						client.socket.send(Message::Text(message.clone())).await
+							.expect("socket error");
+					}).await;
+			},
+			Ok(_) => server_opcode_error(&mut clients[index]).await,
 			Err(error) => deserialize_error(error, &mut clients[index]).await
 		}
 	}

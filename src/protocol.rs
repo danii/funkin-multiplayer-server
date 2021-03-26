@@ -39,9 +39,20 @@ pub enum Lobby<'i> {
 
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "opcode")]
-pub enum Play {
+pub enum Play<'i> {
 	#[serde(rename = "0")]
 	ClientScoreUpdate {
-		score: f64
+		score: f64,
+		health: f64
+	},
+	#[serde(rename = "1")]
+	UserScoreUpdate {
+		user: &'i str,
+		score: f64,
+		health: f64
+	},
+	#[serde(rename = "2")]
+	UserLeave {
+		user: &'i str
 	}
 }
