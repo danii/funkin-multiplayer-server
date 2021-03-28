@@ -11,6 +11,7 @@ use warp::filters::ws::{Message, WebSocket};
 
 pub async fn session(mut channel: Receiver<WebSocket>) {
 	let mut clients = Vec::<Client>::new();
+	let mut state = None;
 
 	loop {
 		// Store whether or not clients is empty to avoid immutably borrowing later.
@@ -41,7 +42,7 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 				(Some(Ok(Message::Text(data))), index, _) => {
 					drop(message_futures); // Drop message_futures now that we're done.
 					println!("Message {} from {:?}.", data, &clients[index]);
-					process_opcode(&mut clients, &data, index).await;
+					process_opcode(&mut clients, &mut state, &data, index).await;
 				},
 				// Wow, warp is a really huge piece of shit and provides zero fucking
 				// information on errors other than human readable strings which may
@@ -67,7 +68,7 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 						match clients.remove(index).state {
 							ClientState::Lobby {username, ..} |
 								ClientState::Play {username} =>
-									process_user_leave(&mut clients, &username).await,
+									process_user_leave(&mut clients, &mut state, &username).await,
 							_ => ()
 						}
 					},
@@ -79,7 +80,7 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 					match clients.remove(index).state {
 						ClientState::Lobby {username, ..} |
 							ClientState::Play {username} =>
-								process_user_leave(&mut clients, &username).await,
+								process_user_leave(&mut clients, &mut state, &username).await,
 						_ => ()
 					}
 				},
@@ -121,9 +122,12 @@ impl Default for ClientState {
 	}
 }
 
+type ServerState = Option<Box<str>>;
+
 // Beware! Lots of strange usages of mutable borrows to (hopefully) speed up
 // performance and please the borrow checker at the same time!
-async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
+async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
+		data: &str, index: usize) {
 	match &mut clients[index].state {
 		ClientState::Login => match from_str(data) {
 			Ok(RoomLogin::ClientInformation {username}) => {
@@ -240,7 +244,7 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 				let message_data = if tee.len() != readied.len() {
 					Lobby::UsersReadied {users: readied}
 				} else {
-					Lobby::GameStart
+					Lobby::GameStart {song: state.as_ref().expect("protocol error")}
 				};
 				let message = &to_string(&message_data)
 					.expect("serialization error");
@@ -252,7 +256,7 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 					}).await;
 
 				// Update user states if the game has started.
-				if message_data == Lobby::GameStart {
+				if matches!(message_data, Lobby::GameStart {..}) {
 					clients.iter_mut()
 						.for_each(|client| match take(&mut client.state) {
 							ClientState::Lobby {username, ..} =>
@@ -284,7 +288,8 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 	}
 }
 
-async fn process_user_leave(clients: &mut Vec<Client>, user: &str) {
+async fn process_user_leave(clients: &mut Vec<Client>, state: &mut ServerState,
+		user: &str) {
 	let message_data = Lobby::UserLeft {user};
 	let message = &to_string(&message_data)
 		.expect("serialization error");
@@ -295,7 +300,9 @@ async fn process_user_leave(clients: &mut Vec<Client>, user: &str) {
 			ClientState::Lobby {ready, ..} => ready,
 			_ => false
 		})
-		.then(|| to_string(&Lobby::GameStart).expect("serialization error"));
+		.then(|| to_string(&Lobby::GameStart {
+			song: state.as_ref().expect("protocol error")}
+		).expect("serialization error"));
 
 	iter(clients.iter_mut())
 		.for_each_concurrent(None, |client| {
