@@ -179,7 +179,10 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 						if **ready {Some(*username)} else {None})
 					.collect::<Vec<_>>();
 				let readied = if !readied_data.is_empty() {
-					let data = Lobby::UsersReadied {users: readied_data};
+					let data = Lobby::UsersReadied {
+						users: readied_data,
+						song: state.as_ref().map(|song| &**song)
+					};
 					Some(to_string(&data).expect("serialization error"))
 				} else {None};
 
@@ -242,9 +245,14 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 					.filter_map(|(_, readied)| *readied)
 					.collect::<Vec<_>>();
 				let message_data = if tee.len() != readied.len() || 1 >= tee.len() {
-					Lobby::UsersReadied {users: readied}
+					Lobby::UsersReadied {
+						users: readied,
+						song: state.as_ref().map(|song| &**song)
+					}
 				} else {
-					Lobby::GameStart {song: state.as_ref().expect("protocol error")}
+					Lobby::GameStart {
+						song: state.as_ref().expect("protocol error")
+					}
 				};
 				let message = &to_string(&message_data)
 					.expect("serialization error");
@@ -264,6 +272,34 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 							_ => ()
 						});
 				}
+			},
+			Ok(Lobby::SetSong {song}) => {
+				*state = Some(song.into());
+
+				let tee = clients.iter_mut()
+					.map(|client| match &client.state {
+						ClientState::Lobby {username, ready} if *ready =>
+							(Some(&mut client.socket), Some(username as &str)),
+						ClientState::Lobby {..} =>
+							(Some(&mut client.socket), None),
+						_ => (None, None)
+					})
+					.collect::<Vec<_>>();
+
+				let readied = tee.iter()
+					.filter_map(|(_, readied)| *readied)
+					.collect::<Vec<_>>();
+				let message_data = Lobby::UsersReadied {
+					users: readied, song: Some(song)
+				};
+				let message = &to_string(&message_data)
+					.expect("serialization error");
+
+				iter(tee.into_iter().filter_map(|(client, _)| client))
+					.for_each_concurrent(None, |client| async move {
+						client.send(Message::Text(message.clone())).await
+							.expect("socket error");
+					}).await;
 			},
 			Ok(_) => server_opcode_error(&mut clients[index]).await,
 			Err(error) => deserialize_error(error, &mut clients[index]).await
