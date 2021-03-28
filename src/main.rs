@@ -17,7 +17,7 @@ async fn main() {
 	let websocket_endpoint = path("gateway").and(ws())
 		.map(move |ws| gateway_handler(ws, sessioner_handle.clone()));
 	let server = serve(websocket_endpoint)
-		.run(([127, 0, 0, 1], 8080));
+		.run(([127, 0, 0, 1], 6969));
 
 	join!(server, sessioner);
 }
