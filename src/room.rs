@@ -155,26 +155,42 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 						Some(client)
 					})
 					.filter_map(|client| match &client.state {
-						ClientState::Lobby {username, ..} =>
-							Some((&mut client.socket, username as &str)),
+						ClientState::Lobby {username, ready} =>
+							Some((&mut client.socket, username as &str, ready)),
+						// TODO: Handle play?
 						_ => None
 					})
 					.collect::<Vec<_>>();
 
 				let message_data = RoomLogin::RoomInformation {
 					users: tee.iter()
-						.map(|(_, username)| *username)
+						.map(|(_, username, _)| *username)
 						.collect()
 				};
 				let message = to_string(&message_data)
 					.expect("serialization error");
 
+				let readied_data = tee.iter()
+					.filter_map(|(_, username, ready)|
+						if **ready {Some(*username)} else {None})
+					.collect::<Vec<_>>();
+				let readied = if readied_data.is_empty() {
+					let data = Lobby::UsersReadied {users: readied_data};
+					Some(to_string(&data).expect("serialization error"))
+				} else {None};
+
 				// This future tells the new client about the other already logged in
 				// clients.
 				let this_client = async {
-					this_client.expect("internal error")
-						.socket.send(Message::Text(message)).await
+					let client = this_client.expect("internal error");
+
+					client.socket.send(Message::Text(message)).await
 						.expect("socket error");
+					match readied {
+						Some(message) => client.socket.send(Message::Text(message)).await
+							.expect("socket error"),
+						_ => ()
+					}
 				};
 
 				let message_data = Lobby::UserJoin {user: &username};
@@ -183,7 +199,7 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 
 				// This future tells the other already logged in clients of the new
 				// client.
-				let clients_future = iter(tee.into_iter().map(|(client, _)| client))
+				let clients_future = iter(tee.into_iter().map(|(client, _, _)| client))
 					.for_each_concurrent(None, |client| async move {
 						client.send(Message::Text(message.clone())).await
 							.expect("socket error");
