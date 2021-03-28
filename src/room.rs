@@ -237,9 +237,10 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 				let readied = tee.iter()
 					.filter_map(|(_, readied)| *readied)
 					.collect::<Vec<_>>();
-				let message_data = if tee.len() != readied.len() {
+				let message_data = if tee.len() != readied.len() && tee.len() > 1 {
 					Lobby::UsersReadied {users: readied}
 				} else {
+          Lobby::UsersReadied {users: readied};
 					Lobby::GameStart
 				};
 				let message = &to_string(&message_data)
