@@ -250,6 +250,10 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 						song: state.as_ref().map(|song| &**song)
 					}
 				} else {
+          Lobby::UsersReadied {
+						users: readied,
+						song: state.as_ref().map(|song| &**song)
+					};
 					Lobby::GameStart {
 						song: state.as_ref().expect("protocol error")
 					}
