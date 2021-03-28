@@ -174,7 +174,7 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 					.filter_map(|(_, username, ready)|
 						if **ready {Some(*username)} else {None})
 					.collect::<Vec<_>>();
-				let readied = if readied_data.is_empty() {
+				let readied = if !readied_data.is_empty() {
 					let data = Lobby::UsersReadied {users: readied_data};
 					Some(to_string(&data).expect("serialization error"))
 				} else {None};
