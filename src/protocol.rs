@@ -23,10 +23,13 @@ pub enum Lobby<'i> {
 	#[serde(rename = "1")]
 	UsersReadied {
 		#[serde(borrow)]
-		users: Vec<&'i str>
+		users: Vec<&'i str>,
+		song: Option<&'i str>
 	},
 	#[serde(rename = "2")]
-	GameStart,
+	GameStart {
+		song: &'i str
+	},
 	#[serde(rename = "3")]
 	UserJoin {
 		user: &'i str
@@ -34,6 +37,10 @@ pub enum Lobby<'i> {
 	#[serde(rename = "4")]
 	UserLeft {
 		user: &'i str
+	},
+	#[serde(rename = "5")]
+	SetSong {
+		song: &'i str
 	}
 }
 
