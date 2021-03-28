@@ -241,7 +241,7 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 				let readied = tee.iter()
 					.filter_map(|(_, readied)| *readied)
 					.collect::<Vec<_>>();
-				let message_data = if tee.len() != readied.len() {
+				let message_data = if tee.len() != readied.len() || 1 >= tee.len() {
 					Lobby::UsersReadied {users: readied}
 				} else {
 					Lobby::GameStart {song: state.as_ref().expect("protocol error")}
@@ -294,12 +294,12 @@ async fn process_user_leave(clients: &mut Vec<Client>, state: &mut ServerState,
 	let message = &to_string(&message_data)
 		.expect("serialization error");
 
-	let game_start = clients.iter()
+	let game_start = (clients.len() > 1 && clients.iter()
 		.all(|client| match client.state {
 			ClientState::Login => true,
 			ClientState::Lobby {ready, ..} => ready,
 			_ => false
-		})
+		}))
 		.then(|| to_string(&Lobby::GameStart {
 			song: state.as_ref().expect("protocol error")}
 		).expect("serialization error"));
