@@ -217,7 +217,7 @@ async fn process_opcode(clients: &mut Vec<Client>, data: &str, index: usize) {
 		},
 		ClientState::Lobby {ready, ..} => match from_str(data) {
 			Ok(Lobby::ClientReady) => {
-				*ready = true;
+				*ready = !*ready;
 
 				// Use the same iterator for multiple purposes. First use is for
 				// collecting a list of readied users. Second use is for collecting a
