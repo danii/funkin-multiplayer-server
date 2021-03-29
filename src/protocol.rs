@@ -61,5 +61,9 @@ pub enum Play<'i> {
 	#[serde(rename = "2")]
 	UserLeave {
 		user: &'i str
-	}
+	},
+	#[serde(rename = "3")]
+	Loaded,
+	#[serde(rename = "4")]
+	AllLoaded
 }

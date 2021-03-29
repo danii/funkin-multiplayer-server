@@ -67,7 +67,7 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 
 						match clients.remove(index).state {
 							ClientState::Lobby {username, ..} |
-								ClientState::Play {username} =>
+								ClientState::Play {username, ..} =>
 									process_user_leave(&mut clients, &mut state, &username).await,
 							_ => ()
 						}
@@ -79,7 +79,7 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 
 					match clients.remove(index).state {
 						ClientState::Lobby {username, ..} |
-							ClientState::Play {username} =>
+							ClientState::Play {username, ..} =>
 								process_user_leave(&mut clients, &mut state, &username).await,
 						_ => ()
 					}
@@ -112,7 +112,8 @@ enum ClientState {
 		ready: bool
 	},
 	Play {
-		username: Box<str>
+		username: Box<str>,
+		loaded: bool
 	}
 }
 
@@ -134,7 +135,7 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 				let taken = clients.iter()
 					.filter_map(|client| match &client.state {
 						ClientState::Lobby {username, ..} |
-							ClientState::Play {username} =>
+							ClientState::Play {username, ..} =>
 								Some(&*username as &str),
 						_ => None
 					})
@@ -272,7 +273,8 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 					clients.iter_mut()
 						.for_each(|client| match take(&mut client.state) {
 							ClientState::Lobby {username, ..} =>
-								drop(replace(&mut client.state, ClientState::Play {username})),
+								drop(replace(&mut client.state,
+									ClientState::Play {username, loaded: false})),
 							_ => ()
 						});
 				}
@@ -308,7 +310,7 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 			Ok(_) => server_opcode_error(&mut clients[index]).await,
 			Err(error) => deserialize_error(error, &mut clients[index]).await
 		},
-		ClientState::Play {username} => match from_str(data) {
+		ClientState::Play {username, ..} => match from_str(data) {
 			Ok(Play::ClientScoreUpdate {score, health}) => {
 				let message_data = Play::UserScoreUpdate {
 					user: &username, score, health
@@ -321,6 +323,38 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 						client.socket.send(Message::Text(message.clone())).await
 							.expect("socket error");
 					}).await;
+			},
+			Ok(Play::Loaded) => {
+				let tee = clients.iter_mut()
+					.enumerate()
+					.filter_map(|(ind, client)| {
+						if ind == index {match &mut client.state {
+							ClientState::Play {loaded, ..} => *loaded = true,
+							_ => unreachable!()
+						}}
+
+						match &client.state {
+							ClientState::Play {loaded, ..} =>
+								Some((&mut client.socket, loaded)),
+							_ => None
+						}
+					})
+					.collect::<Vec<_>>();
+
+				let all_loaded = tee.iter()
+					.all(|(_, loaded)| **loaded);
+
+				if all_loaded {
+					let message_data = Play::AllLoaded;
+					let message = &to_string(&message_data)
+						.expect("serialization error");
+
+					iter(tee.into_iter())
+						.for_each_concurrent(None, |(client, _)| async move {
+							client.send(Message::Text(message.clone())).await
+								.expect("socket error");
+						}).await;
+				}
 			},
 			Ok(_) => server_opcode_error(&mut clients[index]).await,
 			Err(error) => deserialize_error(error, &mut clients[index]).await
@@ -365,7 +399,8 @@ async fn process_user_leave(clients: &mut Vec<Client>, state: &mut ServerState,
 		clients.iter_mut()
 			.for_each(|client| match take(&mut client.state) {
 				ClientState::Lobby {username, ..} =>
-					drop(replace(&mut client.state, ClientState::Play {username})),
+					drop(replace(&mut client.state,
+						ClientState::Play {username, loaded: false})),
 				_ => ()
 			});
 	}
