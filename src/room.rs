@@ -274,7 +274,7 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 				}
 			},
 			Ok(Lobby::SetSong {song}) => {
-				*state = Some(song.into());
+				*state = Some(song);
 
 				let tee = clients.iter_mut()
 					.map(|client| match &client.state {
@@ -290,7 +290,7 @@ async fn process_opcode(clients: &mut Vec<Client>, state: &mut ServerState,
 					.filter_map(|(_, readied)| *readied)
 					.collect::<Vec<_>>();
 				let message_data = Lobby::UsersReadied {
-					users: readied, song: Some(song)
+					users: readied, song: Some(&*state.as_ref().unwrap())
 				};
 				let message = &to_string(&message_data)
 					.expect("serialization error");

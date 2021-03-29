@@ -40,7 +40,7 @@ pub enum Lobby<'i> {
 	},
 	#[serde(rename = "5")]
 	SetSong {
-		song: &'i str
+		song: Box<str>
 	}
 }
 
