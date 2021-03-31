@@ -1,7 +1,7 @@
 [package]
 name = "funkin-multiplayer-server"
 version = "0.1.0"
-authors = ["Daniel Conley <himself@danii.dev>", "WaviestBalloon <_@fur.dev>"]
+authors = ["Daniel Conley <himself@danii.dev>", "Alek Evans <contact@alekeagle.com>"]
 edition = "2018"
 
 [dependencies]
