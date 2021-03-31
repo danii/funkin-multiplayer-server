@@ -23,3 +23,9 @@ After setting up the Rust compiler, compiling is a breeze, well, a rather long b
 [windows-downloads]: %HOME%\Downloads
 [windows-prompt]: %WINDIR%\System32\cmd.exe
 [rustup]: https://rustup.rs/
+
+Special Thanks
+--------------
+[Bakbak](https://www.youtube.com/channel/UC5dLONf1C4HwzSZQ8ptpETA) - For making YouTube videos on our modification!<br>
+[AlekEagle](https://alekeagle.me/) - Doing all the client side work I can't trust myself with.<br>
+[Waviest Balloon](https://fur.dev/) - Giving us the opportunity to make this modification.
