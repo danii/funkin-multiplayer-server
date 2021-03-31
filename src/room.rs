@@ -50,7 +50,8 @@ pub async fn session(mut channel: Receiver<WebSocket>) {
 				// fucking die why can nobody write a normal fucking library, please
 				// hold me ;-;.
 				(Some(Err(error)), index, _) => match &format!("{}", error) as &str {
-					"WebSocket protocol error: Connection reset without closing handshake" => {
+					"WebSocket protocol error: Connection reset without closing handshake" |
+						"IO error: Connection reset by peer (os error 104)" => {
 						// Imagine using a library where clients can just crash your server
 						// all they want because you cannot tell what an error is because
 						// the only useful information you can gauge from them is
